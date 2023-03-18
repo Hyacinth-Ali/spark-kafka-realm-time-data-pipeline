@@ -3,7 +3,7 @@ from pyspark.sql.functions import from_json, to_json, col, unbase64, base64, spl
 from pyspark.sql.types import StructField, StructType, StringType, BooleanType, ArrayType, DateType
 
 # TO-DO: create a StructType for the Kafka redis-server topic which has all changes made to Redis - before Spark 3.0.0, schema inference is not automatic
-redisMessageSchema = StructType(
+redisDBMessageSchema = StructType(
     [
         StructField("key", StringType()),
         StructField("existType", StringType()),
@@ -38,12 +38,22 @@ stdiEventSchema = StructType([
 spark = SparkSession.builder.appName("stedi-pipeline-project").getOrCreate()
 
 #TO-DO: set the spark log level to WARN
-spark.sparkContext.set
+spark.sparkContext.setLogLevel("WARN")
 
 # TO-DO: using the spark application object, read a streaming dataframe from the Kafka topic redis-server as the source
 # Be sure to specify the option that reads all the events from the topic including those that were published before you started the spark stream
 
+redisDBRawStreamingDF = spark                          \
+    .readStream                                          \
+    .format("kafka")                                     \
+    .option("kafka.bootstrap.servers", "localhost:9092") \
+    .option("subscribe","redis-server")                  \
+    .option("startingOffsets","earliest")\
+    .load() 
+
 # TO-DO: cast the value column in the streaming dataframe as a STRING 
+
+redisDBStreamingDF = redisDBRawStreamingDF.selectExpr("cast(key as string) key", "cast(value as string) value")
 
 # TO-DO:; parse the single column "value" with a json object in it, like this:
 # +------------+
@@ -77,8 +87,13 @@ spark.sparkContext.set
 #
 # storing them in a temporary view called RedisSortedSet
 
+redisDBStreamingDF.withColumn("value",from_json("value",redisDBMessageSchema))\
+        .select(col('value.*')) \
+        .createOrReplaceTempView("RedisSortedSet")
+
 # TO-DO: execute a sql statement against a temporary view, which statement takes the element field from the 0th element in the array of structs and create a column called encodedCustomer
 # the reason we do it this way is that the syntax available select against a view is different than a dataframe, and it makes it easy to select the nth element of an array in a sql column
+zSetEntriesEncodedDF=spark.sql("select key, zSetEntries[0].element as encodedCustomer from RedisSortedSet")
 
 # TO-DO: take the encodedCustomer column which is base64 encoded at first like this:
 # +--------------------+
@@ -96,9 +111,17 @@ spark.sparkContext.set
 #
 # with this JSON format: {"customerName":"Sam Test","email":"sam.test@test.com","phone":"8015551212","birthDay":"2001-01-03"}
 
+zSetEntriesDecodedDF = zSetEntriesEncodedDF.withColumn("encodedCustomer", unbase64(zSetEntriesEncodedDF.encodedCustomer).cast("string"))
+
+
 # TO-DO: parse the JSON in the Customer record and store in a temporary view called CustomerRecords
+zSetEntriesDecodedDF.withColumn("encodedCustomer",from_json("encodedCustomer",customerMessageSchema))\
+        .select(col('encodedCustomer.*')) \
+        .createOrReplaceTempView("CustomerRecords")
 
 # TO-DO: JSON parsing will set non-existent fields to null, so let's select just the fields we want, where they are not null as a new dataframe called emailAndBirthDayStreamingDF
+
+emailAndBirthDayStreamingDF = spark.sql("SELECT email, birthDay FROM CustomerRecords WHERE email is not null AND birthDay is not null")
 
 # TO-DO: from the emailAndBirthDayStreamingDF dataframe select the email and the birth year (using the split function)
 
@@ -123,3 +146,5 @@ spark.sparkContext.set
 # Run the python script by running the command from the terminal:
 # /home/workspace/submit-redis-kafka-streaming.sh
 # Verify the data looks correct 
+
+emailAndBirthDayStreamingDF.writeStream.outputMode("append").format("console").start().awaitTermination()
