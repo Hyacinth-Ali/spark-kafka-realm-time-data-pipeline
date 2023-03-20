@@ -128,6 +128,8 @@ emailAndBirthDayStreamingDF = spark.sql("SELECT email, birthDay FROM CustomerRec
 # TO-DO: Split the birth year as a separate field from the birthday
 # TO-DO: Select only the birth year and email fields as a new streaming data frame called emailAndBirthYearStreamingDF
 
+emailAndBirthYearStreamingDF = emailAndBirthDayStreamingDF.select('email',split(emailAndBirthDayStreamingDF.birthDay,"-").getItem(0).alias("birthYear"))
+
 # TO-DO: sink the emailAndBirthYearStreamingDF dataframe to the console in append mode
 # 
 # The output should look like this:
@@ -147,4 +149,4 @@ emailAndBirthDayStreamingDF = spark.sql("SELECT email, birthDay FROM CustomerRec
 # /home/workspace/submit-redis-kafka-streaming.sh
 # Verify the data looks correct 
 
-emailAndBirthDayStreamingDF.writeStream.outputMode("append").format("console").start().awaitTermination()
+emailAndBirthYearStreamingDF.writeStream.outputMode("append").format("console").start().awaitTermination()
