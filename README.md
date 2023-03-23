@@ -1,3 +1,7 @@
+# Customer Exercise Risk Factor (Real-Time Data Pipeline)
+Real-time graph that shows the risk value of customers using an application that collects customer data during a [small exercise](https://www.youtube.com/watch?v=XosjuXTCGeg).
+
+
 ## Project Overview
 
 A data science team at STEDI, a small startup focused on assessing balance for seniors, has an application (STEDI application) that collects data from seniors during a [small exercise](https://www.youtube.com/watch?v=XosjuXTCGeg). The user logs in and then selects the customer they are working with. Then the user starts a timer and clicks a button with each step the senior takes. When the senior has reached 30 steps, their test is finished. The data transmitted enables the application to monitor seniors’ balance risk.
